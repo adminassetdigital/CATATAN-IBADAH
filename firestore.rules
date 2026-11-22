@@ -1,0 +1,145 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: tolak semua path lain secara default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn()
+        && request.auth.uid == uid
+        && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string
+        && id.size() >= 1
+        && id.size() <= 128
+        && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidDateKey(date) {
+      return date is string
+        && date.size() == 10
+        && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidItemBase(item) {
+      return item is map
+        && item.keys().hasAll(['done', 'detail'])
+        && item.keys().hasOnly(['done', 'detail'])
+        && item.done is bool;
+    }
+
+    function isValidNumberDetail(item, maxVal) {
+      return isValidItemBase(item)
+        && (item.detail == null || (item.detail is number && item.detail >= 0 && item.detail <= maxVal));
+    }
+
+    function isValidNullDetail(item) {
+      return isValidItemBase(item) && item.detail == null;
+    }
+
+    function isValidTextDetail(item, maxLen) {
+      return isValidItemBase(item)
+        && (item.detail == null || (item.detail is string && item.detail.size() <= maxLen));
+    }
+
+    function isValidSholatMasjidDetail(item) {
+      return isValidItemBase(item)
+        && (
+          item.detail == null
+          || (
+            item.detail is list
+            && item.detail.size() <= 5
+            && item.detail.hasOnly(['Subuh', 'Zuhur', 'Asar', 'Magrib', 'Isya'])
+          )
+        );
+    }
+
+    function isValidIbadahItems(items) {
+      return items is map
+        && items.size() <= 8
+        && items.keys().hasOnly([
+          'dzikir',
+          'berdoa',
+          'quran',
+          'sholat_masjid',
+          'sholat_malam',
+          'silaturahmi',
+          'majelis_ilmu',
+          'sedekah'
+        ])
+        && (!('dzikir' in items) || isValidNumberDetail(items.dzikir, 1000000))
+        && (!('berdoa' in items) || isValidNullDetail(items.berdoa))
+        && (!('quran' in items) || isValidNumberDetail(items.quran, 10000))
+        && (!('sholat_masjid' in items) || isValidSholatMasjidDetail(items.sholat_masjid))
+        && (!('sholat_malam' in items) || isValidNumberDetail(items.sholat_malam, 1000))
+        && (!('silaturahmi' in items) || isValidTextDetail(items.silaturahmi, 100))
+        && (!('majelis_ilmu' in items) || isValidTextDetail(items.majelis_ilmu, 100))
+        && (!('sedekah' in items) || isValidNumberDetail(items.sedekah, 10000000000));
+    }
+
+    function isValidDay(data) {
+      return data.keys().hasAll(['items', 'updatedAt'])
+        && data.keys().hasOnly(['items', 'updatedAt'])
+        && isValidIbadahItems(data.items)
+        && data.updatedAt == request.time;
+    }
+
+    function isValidJurnal(data) {
+      return data.keys().hasAll(['date', 'text', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['date', 'text', 'createdAt', 'updatedAt'])
+        && isValidDateKey(data.date)
+        && data.text is string
+        && data.text.size() >= 1
+        && data.text.size() <= 280
+        && data.createdAt is number
+        && data.createdAt > 0
+        && data.updatedAt is number
+        && data.updatedAt > 0;
+    }
+
+    match /users/{uid}/days/{date} {
+      allow get: if isOwner(uid) && isValidDateKey(date);
+      allow list: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && isValidDateKey(date)
+        && isValidDay(incoming());
+      allow update: if isOwner(uid)
+        && isValidDateKey(date)
+        && isValidDay(incoming())
+        && incoming().diff(existing()).affectedKeys().hasOnly(['items', 'updatedAt']);
+      allow delete: if isOwner(uid) && isValidDateKey(date);
+    }
+
+    match /users/{uid}/jurnal/{id} {
+      allow get: if isOwner(uid) && isValidId(id);
+      allow list: if isOwner(uid);
+      allow create: if isOwner(uid)
+        && isValidId(id)
+        && isValidJurnal(incoming());
+      allow update: if isOwner(uid)
+        && isValidId(id)
+        && isValidJurnal(incoming())
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly(['date', 'text', 'updatedAt']);
+      allow delete: if isOwner(uid) && isValidId(id);
+    }
+  }
+}

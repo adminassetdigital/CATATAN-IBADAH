@@ -1,0 +1,6 @@
+{
+  "name": "Catatan Ibadah Harian",
+  "description": "Aplikasi pencatatan 8 ibadah harian dan jurnal bersyukur dengan autentikasi Google dan Cloud Firestore.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,64 @@
+{
+  "entities": {
+    "DayRecord": {
+      "title": "DayRecord",
+      "description": "Catatan 8 ibadah harian pengguna untuk satu tanggal lokal (YYYY-MM-DD).",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "object",
+          "description": "Peta dari ID ibadah ke status selesai (done) dan detail opsional."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp terakhir kali catatan hari ini diperbarui."
+        }
+      },
+      "required": ["items", "updatedAt"]
+    },
+    "JurnalEntry": {
+      "title": "JurnalEntry",
+      "description": "Satu entri jurnal bersyukur milik pengguna untuk tanggal tertentu.",
+      "type": "object",
+      "properties": {
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "minLength": 10,
+          "maxLength": 10,
+          "description": "Tanggal lokal entri dalam format YYYY-MM-DD."
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280,
+          "description": "Teks rasa syukur pengguna (1-280 karakter)."
+        },
+        "createdAt": {
+          "type": "number",
+          "description": "Waktu pembuatan dalam epoch milidetik."
+        },
+        "updatedAt": {
+          "type": "number",
+          "description": "Waktu pembaruan terakhir dalam epoch milidetik."
+        }
+      },
+      "required": ["date", "text", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}/days/{date}": {
+      "schema": {
+        "$ref": "#/entities/DayRecord"
+      },
+      "description": "Dokumen catatan ibadah harian pengguna dengan ID dokumen berupa string tanggal lokal YYYY-MM-DD."
+    },
+    "/users/{uid}/jurnal/{id}": {
+      "schema": {
+        "$ref": "#/entities/JurnalEntry"
+      },
+      "description": "Koleksi entri jurnal bersyukur pengguna."
+    }
+  }
+}
